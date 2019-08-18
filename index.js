@@ -4,26 +4,28 @@ const robots = {
 }
 
 async function start() {
-  const content = {}
+  const content = {
+    maximumSentences: 7
+  };
 
-  content.searchTerm = askAndReturnSearchTerm()
-  content.prefix = askAndReturnPrefix()
+  content.searchTerm = askAndReturnSearchTerm();
+  content.prefix = askAndReturnPrefix();
 
-  await robots.text(content)
+  await robots.text(content);
 
   function askAndReturnSearchTerm() {
-    return readline.question('Type a Wikipedia search term: ')
+    return readline.question('Type a Wikipedia search term: ');
   }
 
   function askAndReturnPrefix() {
-    const prefixes = ['Who is', 'What is', 'The history of']
-    const selectedPrefixIndex = readline.keyInSelect(prefixes, 'Choose one option: ')
-    const selectedPrefixText = prefixes[selectedPrefixIndex]
+    const prefixes = ['Who is', 'What is', 'The history of'];
+    const selectedPrefixIndex = readline.keyInSelect(prefixes, 'Choose one option: ');
+    const selectedPrefixText = prefixes[selectedPrefixIndex];
 
-    return selectedPrefixText
+    return selectedPrefixText;
   }
 
-  console.log(content)
+  console.log(content);
 }
 
-start()
+start();

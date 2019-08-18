@@ -1,44 +1,55 @@
-const algorithmia = require('algorithmia')
-const algorithmiaApiKey = require('../credentials/algorithmia.json').apiKey
-const sentenceBoundaryDetection = require('sbd')
+const algorithmia = require('algorithmia');
+const algorithmiaApiKey = require('../credentials/algorithmia.json').apiKey;
+const sentenceBoundaryDetection = require('sbd');
+
+const watsonApiKey = require('../credentials/watson-nlu.json').apikey;
+const NaturalLanguageUnderstandingV1 = require('watson-developer-cloud/natural-language-understanding/v1.js');
+
+let nlu = new NaturalLanguageUnderstandingV1({
+  iam_apikey: watsonApiKey,
+  version: '2018-04-05',
+  url: 'https://gateway.watsonplatform.net/natural-language-understanding/api/'
+});
 
 async function robot(content) {
-  await fetchContentFromWikipedia(content)
-  sanitizeContent(content)
-  breakContentIntoSentences(content)
+  await fetchContentFromWikipedia(content);
+  sanitizeContent(content);
+  breakContentIntoSentences(content);
+  limitMaximumSentences(content);
+  await fetchKeywordsOfAllSentences(content);
 
   async function fetchContentFromWikipedia(content) {
-    const algorithmiaAuthenticated = algorithmia(algorithmiaApiKey)
-    const wikipediaAlgorithm = algorithmiaAuthenticated.algo('web/WikipediaParser/0.1.2')
-    const wikipediaResponde = await wikipediaAlgorithm.pipe(content.searchTerm)
-    const wikipediaContent = wikipediaResponde.get()
+    const algorithmiaAuthenticated = algorithmia(algorithmiaApiKey);
+    const wikipediaAlgorithm = algorithmiaAuthenticated.algo('web/WikipediaParser/0.1.2');
+    const wikipediaResponse = await wikipediaAlgorithm.pipe(content.searchTerm);
+    const wikipediaContent = wikipediaResponse.get();
 
-    content.sourceContentOriginal = wikipediaContent.content
+    content.sourceContentOriginal = wikipediaContent.content;
   }
 
   function sanitizeContent(content) {
-    const withoutBlankLinesAndMarkdown = removeBlankLinesAndMarkdown(content.sourceContentOriginal)
-    const withoutDatesInParentheses = removeDatesInParentheses(withoutBlankLinesAndMarkdown)
+    const withoutBlankLinesAndMarkdown = removeBlankLinesAndMarkdown(content.sourceContentOriginal);
+    const withoutDatesInParentheses = removeDatesInParentheses(withoutBlankLinesAndMarkdown);
 
-    content.sourceContentSanitized = withoutDatesInParentheses
+    content.sourceContentSanitized = withoutDatesInParentheses;
 
     function removeBlankLinesAndMarkdown(text) {
-      const allLines = text.split('\n')
+      const allLines = text.split('\n');
 
       const withoutBlankLinesAndMarkdown = allLines.filter((line) => {
         if (line.trim().length === 0 || line.trim().startsWith('=')) {
-          return false
+          return false;
         }
 
-        return true
+        return true;
       })
 
-      return withoutBlankLinesAndMarkdown.join(' ')
+      return withoutBlankLinesAndMarkdown.join(' ');
     }
   }
 
   function removeDatesInParentheses(text) {
-    return text.replace(/\((?:\([^()]*\)|[^()])*\)/gm, '').replace(/  /g,' ')
+    return text.replace(/\((?:\([^()]*\)|[^()])*\)/gm, '').replace(/  /g,' ');
   }
 
   function breakContentIntoSentences(content) {
@@ -50,10 +61,44 @@ async function robot(content) {
         text: sentence,
         keywords: [],
         images: []
-      })
-    })
+      });
+    });
+  }
+
+  async function fetchKeywordsOfAllSentences(content){
+    for (const sentece of content.sentences) {
+      sentece.keywords = await fetchWatsonAndReturnKeywords(sentece.text);
+    }
+  }
+
+  async function fetchWatsonAndReturnKeywords(sentence){
+    return new Promise((resolve, reject) => {
+      nlu.analyze(
+        {
+          text: sentence,
+          features: {
+            keywords: {}
+          }
+        },
+        function(err, response) {
+          if (err) {
+            console.log('error:', err);
+            throw err;
+          } else {
+            const keywords = response.keywords.map((keywords) =>{
+              return keywords.text;
+            });
+            resolve(keywords);
+          }
+        }
+      );
+    });
+  }
+
+  function limitMaximumSentences(content){
+    content.sentences = content.sentences.slice(0, content.maximumSentences)
   }
 
 }
 
-module.exports = robot
+module.exports = robot;
